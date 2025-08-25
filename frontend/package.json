@@ -18,7 +18,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "postinstall": "chmod +x node_modules/.bin/* || true"
   },
   "browserslist": {
     "production": [
@@ -34,5 +35,8 @@
   },
   "devDependencies": {
     "eslint-plugin-react-hooks": "^4.6.0"
+  },
+  "engines": {
+    "node": ">=18 <=20"
   }
 }
