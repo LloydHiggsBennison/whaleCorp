@@ -1,37 +1,54 @@
+// server.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const { MongoClient } = require("mongodb");
+const { MongoClient, ServerApiVersion } = require("mongodb");
 
 const app = express();
+
+// -------- Config básica --------
+app.set("trust proxy", 1);
+app.use(cors());                // Si quieres, luego restringe a tu dominio de Vercel
+app.use(express.json());
+
+// -------- ENV --------
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error("❌ Falta MONGODB_URI en variables de entorno");
+  process.exit(1);
+}
 
-// fetch compatible con Node < 18
+// -------- DB (Mongo Atlas) --------
+let mongoClient;
+let db;
+
+async function connectDB() {
+  mongoClient = new MongoClient(MONGODB_URI, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+  });
+  await mongoClient.connect();
+
+  // Usa el nombre de DB que quieras. Si en Atlas defines una DB específica, colócala aquí:
+  db = mongoClient.db("whalecorpdb");
+  await db.command({ ping: 1 });
+
+  console.log("✅ Conectado a MongoDB Atlas");
+}
+
+// -------- Fetch compatible con Node < 18 --------
 const _fetch =
   typeof fetch === "function"
     ? fetch
     : (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 
-let db;
-
-async function connectDB() {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-  db = client.db("whalecorpdb"); // Usa la base de datos indicada en la URI
-  console.log("Conectado a MongoDB Atlas");
-}
-
-app.use(cors());
-app.use(express.json());
-
-/* ============================================================================
-   STREAM PROBE (sin secret keys, sin OAuth)
-   - Detecta si un canal de Twitch está LIVE raspando el HTML público del canal.
-   - Responde siempre 200 con { channel, live } para no romper el front.
-   - Cache en memoria 20s por canal (salteable con ?force=1).
-   - Ruta de debug opcional para inspeccionar patrones.
-============================================================================ */
+// ============================================================================
+// STREAM PROBE (sin secret keys, sin OAuth)
+// ============================================================================
 const _UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
 
@@ -49,11 +66,6 @@ async function fetchWithTimeout(url, opts = {}, ms = 10000) {
 }
 
 function detectLiveFromHtml(html) {
-  // Patrones robustos:
-  // - "isLiveBroadcast":true
-  // - "isLive":true
-  // - data-a-player-state="site.live"  (comillas dobles o simples)
-  // - "type":"live" con contexto cercano (viewer_count, game, started_at)
   const reasons = [];
 
   const p1 = /"isLiveBroadcast"\s*:\s*true/i.test(html);
@@ -120,7 +132,7 @@ app.get("/api/stream/live-status", async (req, res) => {
   }
 });
 
-// GET /api/stream/live-debug?channel=foo  (no usar en prod; sólo diagnóstico)
+// GET /api/stream/live-debug?channel=foo  (diagnóstico)
 app.get("/api/stream/live-debug", async (req, res) => {
   const channel = String(req.query.channel || req.query.login || "").trim().toLowerCase();
   if (!channel) return res.status(400).json({ error: "channel required" });
@@ -131,11 +143,10 @@ app.get("/api/stream/live-debug", async (req, res) => {
   }));
   return res.status(200).json({ channel, ...out });
 });
-/* ========================================================================== */
 
-/* ============================================================================
-   USUARIOS Y TARJETAS
-============================================================================ */
+// ============================================================================
+// USUARIOS Y TARJETAS
+// ============================================================================
 
 // LOGIN - Creación de contraseña para admins sin password
 app.post("/api/login", async (req, res) => {
@@ -255,15 +266,40 @@ app.patch("/api/cards/:id", async (req, res) => {
   }
 });
 
-/* ============================================================================
-   START
-============================================================================ */
+// ============================================================================
+// HEALTHCHECK (para probar en Railway)
+// ============================================================================
+app.get("/health", async (_req, res) => {
+  try {
+    await db.command({ ping: 1 });
+    res.status(200).json({ ok: true, db: "up" });
+  } catch (e) {
+    res.status(500).json({ ok: false, db: "down", error: e?.message });
+  }
+});
+
+// ============================================================================
+// START
+// ============================================================================
+let server;
 connectDB()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Servidor backend corriendo en http://localhost:${PORT}`);
+    server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Backend escuchando en 0.0.0.0:${PORT}`);
     });
   })
   .catch((err) => {
     console.error("Error conectando a MongoDB:", err);
+    process.exit(1);
   });
+
+// Cierre limpio en Railway / contenedores
+function shutdown(signal) {
+  console.log(`\n📦 Recibido ${signal}, cerrando...`);
+  Promise.resolve()
+    .then(() => server && server.close())
+    .then(() => mongoClient && mongoClient.close())
+    .finally(() => process.exit(0));
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
