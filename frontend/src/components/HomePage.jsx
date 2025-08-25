@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 
 const StreamingsLazy = React.lazy(() => import("./Streamings"));
 
+// ==== API base dinámica (Vercel/Local) ====
+const API_ORIGIN = (process.env.REACT_APP_API_URL || "http://localhost:3001").replace(/\/$/, "");
+const API_BASE = API_ORIGIN; // Se usa como origen; los paths agregan /api/...
+
 // ---- Helpers: orden y fechas ----
 const SPECIAL_TAIL = new Set(["bard", "paladin", "artist", "valkyrie"]);
 const isTailClass = (clsName) =>
@@ -140,7 +144,7 @@ function StreamsProbe({ onHasLiveChange }) {
       <StreamingsLazy
         pollIntervalMs={60000}
         cardWidth={220}
-        probeEndpoint={"http://localhost:3001/api/stream/live-status"}
+        probeEndpoint={`${API_BASE}/api/stream/live-status`}
         onLiveCountChange={(count) => onHasLiveChange?.(count > 0)}
       />
     </React.Suspense>
@@ -153,9 +157,7 @@ const CharItem = React.memo(function CharItem({ char }) {
     <div
       style={{
         padding: "10px",
-        // borderRadius: "10px",
         backgroundColor: "#e0e0e0",
-        // border: "1px solid #e2e8f0",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -213,7 +215,6 @@ const CharItem = React.memo(function CharItem({ char }) {
 
 // ===================== AQUÍ el auto-refresh ======================
 export default function HomePage({ cards = [], loading, error }) {
-  const API_BASE = "http://localhost:3001";
   const [nowTs, setNowTs] = React.useState(() => Date.now());
   const [hasLive, setHasLive] = React.useState(false);
 
@@ -245,7 +246,6 @@ export default function HomePage({ cards = [], loading, error }) {
         const res = await fetch(`${API_BASE}/api/data`, { signal: aborter.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        // server nuevo devuelve { cards } solamente
         setDataCards(Array.isArray(json.cards) ? json.cards : []);
         setErrMsg("");
       } catch (e) {
@@ -264,7 +264,6 @@ export default function HomePage({ cards = [], loading, error }) {
     // pausar si la pestaña está oculta (opcional)
     const onVis = () => {
       if (document.visibilityState === "visible") {
-        // refresco rápido al volver
         load(true);
       }
     };
@@ -277,9 +276,7 @@ export default function HomePage({ cards = [], loading, error }) {
       aborter.abort();
       aborter = null;
     };
-  }, [API_BASE]);
-
-  // ————————————————————————————————————————————————
+  }, []);
 
   const sortedCards = React.useMemo(() => {
     return [...dataCards].sort((a, b) => {
@@ -637,7 +634,7 @@ export default function HomePage({ cards = [], loading, error }) {
                   <StreamingsLazy
                     pollIntervalMs={60000}
                     cardWidth={220}
-                    probeEndpoint={"http://localhost:3001/api/stream/live-status"}
+                    probeEndpoint={`${API_BASE}/api/stream/live-status`}
                     onLiveCountChange={(count) => setHasLive(count > 0)}
                   />
                 </React.Suspense>
@@ -649,3 +646,4 @@ export default function HomePage({ cards = [], loading, error }) {
     </div>
   );
 }
+// ===================== END HomePage ======================
