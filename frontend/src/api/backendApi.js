@@ -1,28 +1,62 @@
-const BACKEND_URL = "http://localhost:3001/api";
+// frontend/src/api/backendApi.js
+
+// Usa REACT_APP_API_URL en producción (Vercel) y localhost en desarrollo.
+// Ejemplo en Vercel: REACT_APP_API_URL = https://whalecorp-production.up.railway.app
+const API_ORIGIN = (process.env.REACT_APP_API_URL || "http://localhost:3001").replace(/\/$/, "");
+const API_BASE = `${API_ORIGIN}/api`;
+
+// Helper con timeout y manejo de errores homogéneo
+async function http(path, options = {}, timeoutMs = 15000) {
+  const url = `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      signal: ctrl.signal,
+      ...options,
+    });
+
+    if (!res.ok) {
+      // Intentamos leer JSON de error; si no, texto plano
+      let errMsg = res.statusText;
+      try {
+        const data = await res.json();
+        errMsg = data?.error || JSON.stringify(data);
+      } catch {
+        try { errMsg = await res.text(); } catch {}
+      }
+      throw new Error(`HTTP ${res.status}: ${errMsg}`);
+    }
+
+    // Puede devolver 204 No Content
+    if (res.status === 204) return null;
+    return await res.json();
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+// ===== Endpoints =====
 
 export async function fetchAppData() {
   try {
-    const res = await fetch(`${BACKEND_URL}/data`);
-    if (!res.ok) throw new Error("Error fetching data");
-    return await res.json();
+    return await http("/data", { method: "GET" });
   } catch (error) {
     console.error("Fetch error:", error);
+    // Fallback seguro para que el front no explote
     return { users: {}, cards: [] };
   }
 }
 
 export async function saveUserData(email, data) {
   try {
-    const res = await fetch(`${BACKEND_URL}/user`, {
+    return await http("/user", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, data }),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Error saving user");
-    }
-    return await res.json();
   } catch (error) {
     console.error("Save user error:", error);
     throw error;
@@ -31,16 +65,10 @@ export async function saveUserData(email, data) {
 
 export async function saveCards(cards) {
   try {
-    const res = await fetch(`${BACKEND_URL}/cards`, {
+    return await http("/cards", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cards }),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Error saving cards");
-    }
-    return await res.json();
   } catch (error) {
     console.error("Save cards error:", error);
     throw error;
