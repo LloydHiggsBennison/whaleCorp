@@ -9,6 +9,7 @@ export const CLASSES = [
   { key: "deadeye", name: "Deadeye", image: "/assets/classes/deadeye.png" },
   { key: "death blade", name: "Deathblade", image: "/assets/classes/deathblade.png" },
   { key: "destroyer", name: "Destroyer", image: "/assets/classes/destroyer.png" },
+  { key: "gunslinger", name: "Gunslinger", image: "/assets/classes/gunner.png" },
   { key: "glavier", name: "Glavier", image: "/assets/classes/glavier.png" },
   { key: "gunlancer", name: "Gunlancer", image: "/assets/classes/gunlancer.png" },
   { key: "machinist", name: "Machinist", image: "/assets/classes/machinist.png" },
