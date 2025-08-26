@@ -6,6 +6,7 @@ import UserProfile from "./components/UserProfile";
 import Header from "./components/Header";
 import HomePage from "./components/HomePage";
 import AdminPanel from "./components/AdminPanel";
+import Footer from "./components/Footer"; // ⬅️ nuevo
 
 // Fallback robusto para el background cuando la app se despliega bajo subcarpetas.
 // Usa la imagen que está en /public/assets/background/whale.png
@@ -24,6 +25,22 @@ function App() {
   const [loginMode, setLoginMode] = useState("login"); // "login" | "register" | "createPassword"
   const isLoggingOut = useRef(false);
 
+  // 🔁 Utilidad: obtener todos los personajes desde el mapa de usuarios (declaración -> hoisting OK)
+  function getAllCharacters(users) {
+    const characters = [];
+    Object.entries(users || {}).forEach(([email, udata]) => {
+      if (udata?.characters?.length) {
+        udata.characters.forEach((char) => {
+          characters.push({
+            ...char,
+            userEmail: email,
+          });
+        });
+      }
+    });
+    return characters;
+  }
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -40,6 +57,7 @@ function App() {
       }
     };
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -69,21 +87,6 @@ function App() {
       return () => clearTimeout(saveTimeout);
     }
   }, [userData, userEmail]);
-
-  const getAllCharacters = (users) => {
-    const characters = [];
-    Object.entries(users).forEach(([email, udata]) => {
-      if (udata?.characters?.length) {
-        udata.characters.forEach((char) => {
-          characters.push({
-            ...char,
-            userEmail: email,
-          });
-        });
-      }
-    });
-    return characters;
-  };
 
   const saveCardsHandler = async (cards) => {
     try {
@@ -167,58 +170,70 @@ function App() {
   const userRole = userData?.role || "user";
 
   return (
-    <div
-      data-app-root
-      style={{
-        minHeight: "100vh",
-        /* Fallback JS por si el CSS no se aplica (subpaths, overrides, etc.) */
-        backgroundImage: `url(${BG_URL})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      <BrowserRouter>
+    <BrowserRouter>
+      {/* Layout: header arriba, main que crece, footer abajo */}
+      <div
+        data-app-root
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          // Fallback JS por si el CSS no se aplica (subpaths, overrides, etc.)
+          backgroundImage: `url(${BG_URL})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
         <Header userEmail={userEmail} onLogout={handleLogout} />
-        <Routes>
-          <Route path="/" element={<HomePage cards={appData.cards} loading={loading} />} />
-          <Route
-            path="/login"
-            element={
-              userEmail ? (
-                <Navigate to={userRole === "admin" ? "/admin" : "/profile"} />
-              ) : (
-                <LoginForm onLogin={handleLogin} mode={loginMode} />
-              )
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              userEmail && userRole === "user" ? (
-                <UserProfile userEmail={userEmail} userData={userData} setUserData={setUserData} />
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              userEmail && userRole === "admin" ? (
-                <AdminPanel
-                  cards={appData.cards}
-                  allCharacters={appData.allCharacters}
-                  onSaveCards={saveCardsHandler}
-                />
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-        </Routes>
-      </BrowserRouter>
-    </div>
+
+        <main style={{ flex: 1 }}>
+          <Routes>
+            <Route path="/" element={<HomePage cards={appData.cards} loading={loading} />} />
+            <Route
+              path="/login"
+              element={
+                userEmail ? (
+                  <Navigate to={userRole === "admin" ? "/admin" : "/profile"} />
+                ) : (
+                  <LoginForm onLogin={handleLogin} mode={loginMode} />
+                )
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                userEmail && userRole === "user" ? (
+                  <UserProfile
+                    userEmail={userEmail}
+                    userData={userData}
+                    setUserData={setUserData}
+                  />
+                ) : (
+                  <Navigate to="/login" />
+                )
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                userEmail && userRole === "admin" ? (
+                  <AdminPanel
+                    cards={appData.cards}
+                    allCharacters={appData.allCharacters}
+                    onSaveCards={saveCardsHandler}
+                  />
+                ) : (
+                  <Navigate to="/login" />
+                )
+              }
+            />
+          </Routes>
+        </main>
+
+        <Footer />
+      </div>
+    </BrowserRouter>
   );
 }
 
