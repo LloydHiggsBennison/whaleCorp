@@ -1,11 +1,10 @@
-// frontend/src/components/UserProfile.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { CLASSES, CLASS_BY_KEY } from "../constants/classes";
 
 export default function UserProfile({ userEmail, userData, setUserData }) {
   const [newCharacter, setNewCharacter] = useState("");
-  const [selectedLabel, setSelectedLabel] = useState(""); // etiqueta elegida del desplegable (crear)
-  const [newLabel, setNewLabel] = useState("");           // "Nueva etiqueta" (catálogo)
+  const [selectedLabel, setSelectedLabel] = useState(""); 
+  const [newLabel, setNewLabel] = useState("");         
   const [classKey, setClassKey] = useState(CLASSES[0]?.key || "");
   const [isSaving, setIsSaving] = useState(false);
   const [characterError, setCharacterError] = useState("");
@@ -104,7 +103,7 @@ export default function UserProfile({ userEmail, userData, setUserData }) {
 
   // ===== Cambiar label de un personaje YA creado =====
   const handleChangeCharacterLabel = (index, newLbl) => {
-    if (!newLbl || !hasLabel(newLbl)) return; // validación: solo etiquetas del catálogo
+    if (!newLbl || !hasLabel(newLbl)) return; 
     setUserData((prev) => {
       const chars = prev.characters.map((c, i) =>
         i === index ? { ...c, label: newLbl } : c

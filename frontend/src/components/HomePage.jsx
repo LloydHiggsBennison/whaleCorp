@@ -5,7 +5,7 @@ const StreamingsLazy = React.lazy(() => import("./Streamings"));
 
 // ==== API base dinámica (Vercel/Local) ====
 const API_ORIGIN = (process.env.REACT_APP_API_URL || "http://localhost:3001").replace(/\/$/, "");
-const API_BASE = API_ORIGIN; // Se usa como origen; los paths agregan /api/...
+const API_BASE = API_ORIGIN; 
 
 // ---- Helpers: orden y fechas ----
 const SPECIAL_TAIL = new Set(["bard", "paladin", "artist", "valkyrie"]);
@@ -646,4 +646,4 @@ export default function HomePage({ cards = [], loading, error }) {
     </div>
   );
 }
-// ===================== END HomePage ======================
+// ===================== FIN HomePage ======================

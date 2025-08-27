@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-/**
- * Componente simple para dejar/editar un mensaje para administradores.
- * Persiste en userData.note (pero también puedes pasar otro key via prop).
- */
 export default function UserInboxNote({
   userData,
   setUserData,
@@ -24,7 +20,6 @@ export default function UserInboxNote({
       return next;
     });
     setSaving(true);
-    // simulamos “guardado” visual corto
     const t = setTimeout(() => setSaving(false), 700);
     return () => clearTimeout(t);
   };

@@ -12,7 +12,7 @@ export default function Footer() {
         fontSize: "14px",
         fontWeight: 500,
         textShadow: "0px 1px 3px rgba(0,0,0,0.6)",
-        position: "relative", // contenedor relativo
+        position: "relative", 
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -21,16 +21,16 @@ export default function Footer() {
     >
       {/* Imagen flotante a la izquierda */}
       <img
-        src="/assets/Bosses.png" // cambia por tu imagen
+        src="/assets/Bosses.png" 
         alt="Footer Illustration"
         style={{
           position: "absolute",
           left: "20px",
           bottom: "10px",
-          height: "150px", // ajusta el tamaño
+          height: "150px", 
           width: "auto",
           objectFit: "contain",
-          zIndex: 0, // detrás del texto
+          zIndex: 0, 
           opacity: 0.95,
         }}
       />

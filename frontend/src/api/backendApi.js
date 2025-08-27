@@ -1,7 +1,3 @@
-// frontend/src/api/backendApi.js
-
-// Usa REACT_APP_API_URL en producción (Vercel) y localhost en desarrollo.
-// Ejemplo en Vercel: REACT_APP_API_URL = https://whalecorp-production.up.railway.app
 const API_ORIGIN = (process.env.REACT_APP_API_URL || "http://localhost:3001").replace(/\/$/, "");
 const API_BASE = `${API_ORIGIN}/api`;
 

@@ -32,7 +32,7 @@ export default function Header({ userEmail, onLogout }) {
 
       {/* Derecha: Discord + acciones */}
       <nav style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        {/* Discord (ícono plano, minimal) */}
+        {/* Discord  */}
         <a
           href="https://discord.gg/DqcXn6WBx2"
           target="_blank"

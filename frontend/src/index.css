@@ -1,7 +1,7 @@
 /* ===== Base & Reset mínimo ===== */
 :root {
   --text-color: #333;
-  --bg-overlay: rgba(255, 255, 255, 0.25); /* Ajusta opacidad si lo quieres más claro/oscuro */
+  --bg-overlay: rgba(255, 255, 255, 0.25); 
 }
 
 *,

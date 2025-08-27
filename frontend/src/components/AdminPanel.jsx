@@ -1,4 +1,3 @@
-// frontend/src/components/AdminPanel.jsx
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import Modal from "react-modal";
 import Select, { components as RSComponents } from "react-select";
@@ -18,7 +17,7 @@ const nameKey = (c) => {
 };
 const getNote = (obj) => obj?.userNote || obj?.note || obj?.profileNote || "";
 
-// Ordena equipos (soporta roles al final)
+// Ordena equipos (soport rol al final)
 const sortTeam = (arr) => {
   const withIndex = (arr || []).map((c, i) => ({ c, i }));
   withIndex.sort((a, b) => {
@@ -272,7 +271,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
       team1,
       team2,
       characters,
-      status: "upcoming", // nueva tarjeta = activa
+      status: "upcoming", 
     };
 
     if (editingCardId) {
@@ -378,7 +377,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     );
   };
 
-  // Personalizamos MultiValueLabel para que el 📩 sea clickeable en las "chips" seleccionadas
+  // MultiValueLabel para que el 📩 sea clickeable en las "chips" seleccionadas
   const MultiValueLabel = (props) => {
     const { data } = props; // option
     const note = getNote(data?.value);
@@ -673,7 +672,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
         </div>
       </Modal>
 
-      {/* MODAL: confirmar “eliminar todas” — auto height y arriba */}
+      {/* MODAL: confirmar “eliminar todas” */}
       <Modal
         isOpen={confirmAllOpen}
         onRequestClose={closeDeleteAllConfirm}
@@ -720,7 +719,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
         </div>
       </Modal>
 
-      {/* MODAL: ver nota 📩 — auto height y arriba */}
+      {/* MODAL: ver nota 📩  */}
       <Modal
         isOpen={noteOpen}
         onRequestClose={() => setNoteOpen(false)}

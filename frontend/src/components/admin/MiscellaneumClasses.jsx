@@ -1,14 +1,10 @@
-// frontend/src/components/admin/MiscellaneumClasses.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { CLASSES } from "../../constants/classes";
 
 function resolveImagePath(p) {
   if (!p) return null;
-  // http(s) o ya absoluto → déjalo como está
   if (p.startsWith("http://") || p.startsWith("https://") || p.startsWith("/")) return p;
-  // si ya viene con "assets/...": prefija con "/"
   if (p.startsWith("assets/")) return `/${p}`;
-  // si solo viene el filename: mándalo a /assets/<filename>
   return `/assets/${p}`;
 }
 
@@ -52,7 +48,6 @@ export default function MiscellaneumClasses({
       });
     }
 
-    // asIs → respeta el orden original
     return CLASSES;
   }, [sortMode, customOrder]);
 

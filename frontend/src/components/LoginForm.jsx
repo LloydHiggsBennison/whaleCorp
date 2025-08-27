@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 export default function LoginForm({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("login"); // "login" | "register" | "createPassword"
+  const [mode, setMode] = useState("login"); 
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -34,7 +34,6 @@ export default function LoginForm({ onLogin }) {
           navigate("/profile");
         }
       } else if (mode === "register") {
-        // Ajustar si permites registro normal
         navigate("/profile");
       }
     } catch (e) {
@@ -93,7 +92,7 @@ export default function LoginForm({ onLogin }) {
               borderRadius: "4px",
               boxSizing: "border-box",
             }}
-            disabled={mode === "createPassword"} // No permitir cambiar email en modo crear contraseña
+            disabled={mode === "createPassword"}
           />
         </div>
 

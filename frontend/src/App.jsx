@@ -6,11 +6,9 @@ import UserProfile from "./components/UserProfile";
 import Header from "./components/Header";
 import HomePage from "./components/HomePage";
 import AdminPanel from "./components/AdminPanel";
-import Footer from "./components/Footer"; // ⬅️ nuevo
+import Footer from "./components/Footer"; 
 
-// Fallback robusto para el background cuando la app se despliega bajo subcarpetas.
-// Usa la imagen que está en /public/assets/background/whale.png
-// Ruta absoluta directa desde public/
+
 const BG_URL = "/assets/background/whale.png";
 
 function App() {
@@ -22,10 +20,10 @@ function App() {
     allCharacters: [],
   });
   const [loading, setLoading] = useState(true);
-  const [loginMode, setLoginMode] = useState("login"); // "login" | "register" | "createPassword"
+  const [loginMode, setLoginMode] = useState("login");
   const isLoggingOut = useRef(false);
 
-  // 🔁 Utilidad: obtener todos los personajes desde el mapa de usuarios (declaración -> hoisting OK)
+  // obtener todos los personajes desde el mapa de usuarios
   function getAllCharacters(users) {
     const characters = [];
     Object.entries(users || {}).forEach(([email, udata]) => {
@@ -57,7 +55,6 @@ function App() {
       }
     };
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -178,7 +175,6 @@ function App() {
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
-          // Fallback JS por si el CSS no se aplica (subpaths, overrides, etc.)
           backgroundImage: `url(${BG_URL})`,
           backgroundSize: "cover",
           backgroundPosition: "center",

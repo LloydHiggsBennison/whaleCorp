@@ -1,4 +1,3 @@
-// frontend/src/components/CardSlot.jsx
 import React from "react";
 import Modal from "react-modal";
 import Select, { components as RSComponents } from "react-select";

@@ -1,4 +1,3 @@
-// server.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -8,7 +7,7 @@ const app = express();
 
 // -------- Config básica --------
 app.set("trust proxy", 1);
-app.use(cors());                // Si quieres, luego restringe a tu dominio de Vercel
+app.use(cors());             
 app.use(express.json());
 
 // -------- ENV --------
@@ -33,7 +32,7 @@ async function connectDB() {
   });
   await mongoClient.connect();
 
-  // Usa el nombre de DB que quieras. Si en Atlas defines una DB específica, colócala aquí:
+  // Nombre de la DB:
   db = mongoClient.db("whalecorpdb");
   await db.command({ ping: 1 });
 
@@ -47,7 +46,7 @@ const _fetch =
     : (...args) => import("node-fetch").then(({ default: f }) => f(...args));
 
 // ============================================================================
-// STREAM PROBE (sin secret keys, sin OAuth)
+// STREAM, no necesita keys
 // ============================================================================
 const _UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
@@ -115,7 +114,7 @@ app.get("/api/stream/live-status", async (req, res) => {
 
   const force = String(req.query.force || "0") === "1";
 
-  // Cache 20s (salteable con ?force=1)
+  // Cache 20s 
   const now = Date.now();
   const cached = liveCache.get(channel);
   if (!force && cached && now - cached.ts < 20000) {
@@ -148,7 +147,7 @@ app.get("/api/stream/live-debug", async (req, res) => {
 // USUARIOS Y TARJETAS
 // ============================================================================
 
-// LOGIN - Creación de contraseña para admins sin password
+// LOGIN - Creación de contraseña para admins
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;

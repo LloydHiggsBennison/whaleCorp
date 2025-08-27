@@ -53,7 +53,7 @@ export default function Streamings({
   probeEndpoint = "/api/stream/live-status",
   onLiveCountChange,
 }) {
-  const [liveList, setLiveList] = useState([]); // [{channel, thumbUrl, w, h}]
+  const [liveList, setLiveList] = useState([]); 
   const [loading, setLoading] = useState(true);
   const timerRef = useRef(null);
 
@@ -179,11 +179,11 @@ export default function Streamings({
       document.removeEventListener("visibilitychange", vis);
       ctrl.abort();
     };
-  }, [normalized, pollIntervalMs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [normalized, pollIntervalMs]); 
 
   const cardHeight = Math.round((cardWidth * 9) / 16);
 
-  // Si no hay nada que mostrar, no renderizamos
+  // Si no hay nada que mostrar, no se renderiza
   if ((loading && liveList.length === 0) || liveList.length === 0) {
     return null;
   }
