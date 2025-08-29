@@ -6,8 +6,11 @@ import UserProfile from "./components/UserProfile";
 import Header from "./components/Header";
 import HomePage from "./components/HomePage";
 import AdminPanel from "./components/AdminPanel";
-import Footer from "./components/Footer"; 
+import Footer from "./components/Footer";
 
+// NUEVO: páginas de “See all Raids” y “Players Online”
+import RaidsAll from "./pages/RaidsAll";
+import PlayersOnline from "./pages/PlayersOnline";
 
 const BG_URL = "/assets/background/whale.png";
 
@@ -185,7 +188,12 @@ function App() {
 
         <main style={{ flex: 1 }}>
           <Routes>
+            {/* Público */}
             <Route path="/" element={<HomePage cards={appData.cards} loading={loading} />} />
+            <Route path="/raids" element={<RaidsAll />} />
+            <Route path="/players" element={<PlayersOnline />} />
+
+            {/* Auth */}
             <Route
               path="/login"
               element={
@@ -224,6 +232,9 @@ function App() {
                 )
               }
             />
+
+            {/* 404 opcional */}
+            {/* <Route path="*" element={<Navigate to="/" />} /> */}
           </Routes>
         </main>
 

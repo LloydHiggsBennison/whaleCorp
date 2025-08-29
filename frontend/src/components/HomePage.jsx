@@ -1,5 +1,7 @@
+// HomePage.jsx
 import React from "react";
 import { Link } from "react-router-dom";
+import RegisteredUsersPanel from "./RegisteredUsersPanel";
 
 const StreamingsLazy = React.lazy(() => import("./Streamings"));
 
@@ -26,24 +28,50 @@ const sortTeam = (arr = []) => {
 const mmddRe = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const ymdRe = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
+// ⬇️ NUEVO: días en inglés (como en tu captura)
+const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+// ⬇️ Actualizado: devuelve "MM-DD Friday"
 const formatDayMonth = (value) => {
   if (!value) return "Fecha no asignada";
   const s = String(value).trim();
+
+  // "MM-DD"
   if (mmddRe.test(s)) {
-    const [m, d] = s.split("-");
-    return `${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    const [mStr, dStr] = s.split("-");
+    const m = parseInt(mStr, 10);
+    const d = parseInt(dStr, 10);
+    const year = new Date().getFullYear();
+    const dt = new Date(year, m - 1, d);
+    if (!isNaN(dt)) {
+      const mm = String(m).padStart(2, "0");
+      const dd = String(d).padStart(2, "0");
+      return `${mm}-${dd} ${WEEKDAYS[dt.getDay()]}`;
+    }
+    return `${mStr.padStart(2,"0")}-${dStr.padStart(2,"0")}`;
   }
+
+  // "yyyy-mm-dd"
   const ymd = s.match(ymdRe);
   if (ymd) {
-    const [, , m, d] = ymd;
+    const [, y, m, d] = ymd;
+    const dt = new Date(parseInt(y,10), parseInt(m,10) - 1, parseInt(d,10));
+    if (!isNaN(dt)) {
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${mm}-${dd} ${WEEKDAYS[dt.getDay()]}`;
+    }
     return `${m}-${d}`;
   }
-  const d = new Date(s);
-  if (!isNaN(d)) {
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${mm}-${dd}`;
+
+  // Cualquier fecha parseable por Date (incluye ISO)
+  const dfree = new Date(s);
+  if (!isNaN(dfree)) {
+    const mm = String(dfree.getMonth() + 1).padStart(2, "0");
+    const dd = String(dfree.getDate()).padStart(2, "0");
+    return `${mm}-${dd} ${WEEKDAYS[dfree.getDay()]}`;
   }
+
   return s;
 };
 
@@ -213,40 +241,82 @@ const CharItem = React.memo(function CharItem({ char }) {
   );
 });
 
-// ===================== AQUÍ el auto-refresh ======================
+// ===================== HomePage ======================
 export default function HomePage({ cards = [], loading, error }) {
   const [nowTs, setNowTs] = React.useState(() => Date.now());
   const [hasLive, setHasLive] = React.useState(false);
 
-  // Estado local para datos auto-actualizables
+  // Estado local
   const [dataCards, setDataCards] = React.useState(cards);
+  const [allCharacters, setAllCharacters] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(!!loading);
   const [errMsg, setErrMsg] = React.useState(error || "");
 
-  // Si cambian las props externas, sincroniza una vez
+  // Sync props
   React.useEffect(() => {
     if (Array.isArray(cards) && cards.length) setDataCards(cards);
     if (typeof loading === "boolean") setIsLoading(loading);
     if (error) setErrMsg(error);
+
+    if (Array.isArray(cards)) {
+      const pool = [];
+      cards.forEach((c) => {
+        const arr = Array.isArray(c?.characters)
+          ? c.characters
+          : [...(c?.team1 || []), ...(c?.team2 || [])];
+        pool.push(...arr);
+      });
+      const seen = new Set();
+      const uniq = [];
+      pool.forEach((ch) => {
+        const k = (ch?.name || "").toLowerCase().trim();
+        if (k && !seen.has(k)) { seen.add(k); uniq.push(ch); }
+      });
+      if (uniq.length) setAllCharacters(uniq);
+    }
   }, [cards, loading, error]);
 
-  // 1) “reloj” local para estados live/expired
+  // reloj local
   React.useEffect(() => {
     const id = setInterval(() => setNowTs(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
 
-  // 2) Polling de datos cada 30s SIN refrescar la página
+  // polling datos
   React.useEffect(() => {
     let aborter = new AbortController();
-
     const load = async (silent = false) => {
       try {
         if (!silent) setIsLoading(true);
         const res = await fetch(`${API_BASE}/api/data`, { signal: aborter.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
-        setDataCards(Array.isArray(json.cards) ? json.cards : []);
+
+        const nextCards = Array.isArray(json.cards) ? json.cards : [];
+        setDataCards(nextCards);
+
+        const apiChars =
+          Array.isArray(json.allCharacters) ? json.allCharacters :
+          Array.isArray(json.characters) ? json.characters : [];
+        if (apiChars.length) {
+          setAllCharacters(apiChars);
+        } else {
+          const pool = [];
+          nextCards.forEach((c) => {
+            const arr = Array.isArray(c?.characters)
+              ? c.characters
+              : [...(c?.team1 || []), ...(c?.team2 || [])];
+            pool.push(...arr);
+          });
+          const seen = new Set();
+          const uniq = [];
+          pool.forEach((ch) => {
+            const k = (ch?.name || "").toLowerCase().trim();
+            if (k && !seen.has(k)) { seen.add(k); uniq.push(ch); }
+          });
+          setAllCharacters(uniq);
+        }
+
         setErrMsg("");
       } catch (e) {
         if (e.name !== "AbortError") setErrMsg(e.message || "Error loading data");
@@ -255,21 +325,10 @@ export default function HomePage({ cards = [], loading, error }) {
       }
     };
 
-    // primera carga inmediata
     load(false);
-
-    // intervalo 30s (carga silenciosa)
     const id = setInterval(() => load(true), 30_000);
-
-    // pausar si la pestaña está oculta (opcional)
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        load(true);
-      }
-    };
+    const onVis = () => { if (document.visibilityState === "visible") load(true); };
     document.addEventListener("visibilitychange", onVis);
-
-    // cleanup
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
@@ -278,6 +337,7 @@ export default function HomePage({ cards = [], loading, error }) {
     };
   }, []);
 
+  // ordenar y filtrar
   const sortedCards = React.useMemo(() => {
     return [...dataCards].sort((a, b) => {
       const da = dateKeyFromDate(a?.date);
@@ -299,7 +359,9 @@ export default function HomePage({ cards = [], loading, error }) {
     [sortedCards, nowTs]
   );
 
-  // Render
+  // SOLO 3 próximas
+  const top3Upcoming = React.useMemo(() => visibleCards.slice(0, 3), [visibleCards]);
+
   return (
     <div
       style={{
@@ -327,19 +389,32 @@ export default function HomePage({ cards = [], loading, error }) {
         @media (max-width: 1100px) {
           .wc-sections { grid-template-columns: 1fr; }
         }
-        .wc-left { content-visibility: auto; contain-intrinsic-size: 600px; }
+        .wc-left { position: relative; content-visibility: auto; contain-intrinsic-size: 600px; }
         .wc-right { content-visibility: auto; contain-intrinsic-size: 400px; }
+
+        .reg-users-overlay {
+          position: fixed;
+          left: 20px;
+          top: 120px;
+          width: 160px;
+          max-height: 70vh;
+          overflow: auto;
+          z-index: 50;
+        }
+        @media (max-width: 1100px) {
+          .reg-users-overlay { left: 12px; top: 100px; width: min(55vw, 200px); max-height: 50vh; }
+        }
       `}</style>
 
-      {/* Welcome */}
+      {/* Título local (sin botones aquí) */}
       <section
         aria-labelledby="welcome-title"
         style={{
-          textAlign: "center",
+          display: "grid",
+          gridTemplateColumns: "1fr",
+          alignItems: "center",
           marginBottom: "28px",
-          padding: "20px",
-          backgroundColor: "transparent",
-          borderRadius: "10px",
+          textAlign: "center",
         }}
       >
         <h1 id="welcome-title" style={{ color: "#000080", fontWeight: 700, margin: 0 }}>
@@ -347,7 +422,7 @@ export default function HomePage({ cards = [], loading, error }) {
         </h1>
       </section>
 
-      {/* Estados */}
+      {/* Estados / contenido */}
       {isLoading ? (
         <section style={{ textAlign: "center", margin: "50px 0" }}>
           <div className="spinner" />
@@ -370,15 +445,13 @@ export default function HomePage({ cards = [], loading, error }) {
               marginTop: 15,
               boxShadow: "0 2px 6px rgba(30,136,229,0.4)",
             }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#1565c0")}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#1e88e5")}
           >
             Retry
           </button>
         </section>
-      ) : visibleCards.length === 0 ? (
+      ) : top3Upcoming.length === 0 ? (
         <section style={{ textAlign: "center", margin: "50px 0", color: "#000080", fontSize: 18 }}>
-          <p>No cards available</p>
+          <p>No upcoming raids</p>
           <Link
             to="/login"
             style={{
@@ -392,8 +465,6 @@ export default function HomePage({ cards = [], loading, error }) {
               fontWeight: 600,
               boxShadow: "0 2px 6px rgba(30,136,229,0.4)",
             }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#1565c0")}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "#1e88e5")}
           >
             Log in as Admin
           </Link>
@@ -402,6 +473,7 @@ export default function HomePage({ cards = [], loading, error }) {
         <section className="wc-sections" aria-label="contenido principal">
           {/* LEFT */}
           <section aria-labelledby="raids-title" className="wc-left">
+            {/* Overlay de usuarios (Online/Offline) */}
             <h2
               id="raids-title"
               style={{
@@ -412,7 +484,7 @@ export default function HomePage({ cards = [], loading, error }) {
                 letterSpacing: "1px",
               }}
             >
-              <b>Pending Raids</b>
+              <b>Upcoming Raids</b> <span style={{ fontSize: 14, color: "#7A5DC7"}}></span>
             </h2>
 
             <div
@@ -422,7 +494,7 @@ export default function HomePage({ cards = [], loading, error }) {
                 gap: "24px",
               }}
             >
-              {visibleCards.map((card, index) => {
+              {top3Upcoming.map((card, index) => {
                 const status = getCardStatus(card, nowTs);
                 const isLive = status === "live";
 
@@ -455,20 +527,6 @@ export default function HomePage({ cards = [], loading, error }) {
                       display: "flex",
                       flexDirection: "column",
                       transition: "transform 0.25s ease, box-shadow 0.25s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isLive) {
-                        e.currentTarget.style.transform = "translateY(-6px)";
-                        e.currentTarget.style.boxShadow =
-                          "0 20px 40px rgba(0,0,0,0.12)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isLive) {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow =
-                          "0 10px 20px rgba(0,0,0,0.08)";
-                      }
                     }}
                   >
                     {/* Header */}
@@ -532,7 +590,6 @@ export default function HomePage({ cards = [], loading, error }) {
                             fontWeight: 500,
                             fontStyle: "italic",
                             margin: 0,
-                            background: "#e0e0e0"
                           }}
                         >
                           Card pending assignment
@@ -546,7 +603,6 @@ export default function HomePage({ cards = [], loading, error }) {
                                 justifyContent: "space-between",
                                 alignItems: "center",
                                 marginBottom: 8,
-                                background: "#e0e0e0"
                               }}
                             >
                               <strong style={{ color: "#7A5DC7" }}>Party 1</strong>
@@ -613,7 +669,8 @@ export default function HomePage({ cards = [], loading, error }) {
                 margin: "0 0 12px",
                 textAlign: "right",
               }}
-            ><b>Live Streamings</b>
+            >
+              <b>Live Streamings</b>
             </h2>
 
             {/* Probe off-screen */}
@@ -626,7 +683,7 @@ export default function HomePage({ cards = [], loading, error }) {
                 style={{
                   borderRadius: 10,
                   padding: 12,
-                  background: "#transparent",
+                  background: "transparent",
                   width: 360,
                 }}
               >
@@ -646,4 +703,3 @@ export default function HomePage({ cards = [], loading, error }) {
     </div>
   );
 }
-// ===================== FIN HomePage ======================

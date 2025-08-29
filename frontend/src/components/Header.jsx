@@ -12,6 +12,28 @@ export default function Header({ userEmail, onLogout }) {
     fontWeight: 500,
   };
 
+  const headerLink = {
+    ...linkBase,
+    fontSize: 14,
+    fontWeight: 600,
+    padding: "6px 10px",
+    borderRadius: 8,
+    background: "transparent",
+    transition: "background .15s ease, transform .15s ease",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+  };
+
+  const headerLinkHover = (e) => {
+    e.currentTarget.style.background = "rgba(122,93,199,0.10)";
+    e.currentTarget.style.transform = "translateY(-1px)";
+  };
+  const headerLinkLeave = (e) => {
+    e.currentTarget.style.background = "transparent";
+    e.currentTarget.style.transform = "none";
+  };
+
   return (
     <header
       style={{
@@ -23,11 +45,51 @@ export default function Header({ userEmail, onLogout }) {
         boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
       }}
     >
-      {/* Izquierda: Marca */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Link to="/" style={linkBase}>
-          <h1 style={{ margin: 0, letterSpacing: ".2px" }}>WhaleCorp</h1>
+      {/* Izquierda: Marca + enlaces de navegación principales */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <Link to="/" style={linkBase} aria-label="Go home">
+          <h1 style={{ margin: 0, letterSpacing: ".2px", whiteSpace: "nowrap" }}>WhaleCorp</h1>
         </Link>
+
+        {/* Separador sutil */}
+        <span style={{ width: 1, height: 22, background: "rgba(0,0,0,0.08)" }} />
+
+        {/* Enlaces en el título */}
+        <nav
+          aria-label="Primary"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
+          <Link
+            to="/raids"
+            style={headerLink}
+            onMouseEnter={headerLinkHover}
+            onMouseLeave={headerLinkLeave}
+          >
+            {/* ícono lista */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#7A5DC7" viewBox="0 0 24 24" style={{ display: "block" }}>
+              <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h12v2H3v-2z" />
+            </svg>
+            See all Raids
+          </Link>
+
+          <Link
+            to="/players"
+            style={headerLink}
+            onMouseEnter={headerLinkHover}
+            onMouseLeave={headerLinkLeave}
+          >
+            {/* ícono users */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#7A5DC7" viewBox="0 0 24 24" style={{ display: "block" }}>
+              <path d="M16 11c1.66 0 3-1.57 3-3.5S17.66 4 16 4s-3 1.57-3 3.5S14.34 11 16 11zm-8 0c1.66 0 3-1.57 3-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h10v-3.5C11 14.17 6.33 13 4 13zm12 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V20h5v-3.5c0-2.33-4.67-3.5-7-3.5z" />
+            </svg>
+            Players Online
+          </Link>
+        </nav>
       </div>
 
       {/* Derecha: Discord + acciones */}

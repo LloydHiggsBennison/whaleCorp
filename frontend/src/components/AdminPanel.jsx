@@ -1,3 +1,4 @@
+// AdminPanel.jsx
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import Modal from "react-modal";
 import Select, { components as RSComponents } from "react-select";
@@ -9,15 +10,42 @@ const SPECIAL_TAIL = new Set(["Bard", "Paladin", "Artist", "Valkyrie"]);
 const ACTIVE_STATUSES = new Set(["upcoming", "live"]);
 const INACTIVE_HINTS = new Set(["ended", "done", "finished", "archived", "past", "cancelled"]);
 
+const WEEKDAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+// ==== Helpers básicos ====
 const nameKey = (c) => {
   if (!c) return "";
   if (typeof c === "string") return c.trim().toLowerCase();
-  if (typeof c.name === "string") return c.name.trim().toLowerCase();
+  if (typeof c?.name === "string") return c.name.trim().toLowerCase();
   return "";
 };
 const getNote = (obj) => obj?.userNote || obj?.note || obj?.profileNote || "";
 
-// Ordena equipos (soport rol al final)
+// Email helpers
+const getEmail = (obj) => {
+  if (!obj || typeof obj !== "object") return "";
+  const candidates = [
+    obj.ownerEmail, obj.email, obj.accountEmail, obj.userEmail,
+    obj.owner?.email, obj.user?.email, obj.profile?.email, obj.account?.email,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim().toLowerCase();
+  }
+  return "";
+};
+const getEmailUser = (obj) => {
+  const e = getEmail(obj);
+  const at = e.indexOf("@");
+  return at > 0 ? e.slice(0, at) : e;
+};
+const getAccountKey = (obj) => {
+  const e = getEmail(obj);
+  if (e) return e;
+  const ids = [obj.ownerId, obj.userId, obj.accountId, obj.owner?.id, obj.user?.id, obj.account?.id];
+  for (const id of ids) if (id) return String(id);
+  return "";
+};
+
 const sortTeam = (arr) => {
   const withIndex = (arr || []).map((c, i) => ({ c, i }));
   withIndex.sort((a, b) => {
@@ -29,10 +57,10 @@ const sortTeam = (arr) => {
   return withIndex.map((x) => x.c);
 };
 
-// ---------- Fecha (MM-DD) ----------
 const z2 = (n) => String(n).padStart(2, "0");
 const mmddRegex = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const ymdRegex = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
 const toMMDD = (s) => {
   if (!s || typeof s !== "string") return "";
   const t = s.trim();
@@ -48,14 +76,28 @@ const toMMDD = (s) => {
   }
   return t;
 };
+
 const isValidMMDD = (mmdd) => {
   if (!mmddRegex.test(mmdd)) return false;
   const [m, d] = mmdd.split("-").map((x) => parseInt(x, 10));
-  const date = new Date(2001, m - 1, d);
+  const date = new Date(2001, m - 1, d); // sólo para validar día del mes
   return date.getMonth() + 1 === m && date.getDate() === d;
 };
 
-// Dedupe
+// ==== Día de la semana (sin desfase de TZ) ====
+// Evita usar new Date("YYYY-MM-DD") que interpreta en UTC.
+const weekdayFromMMDD = (mmdd, year = new Date().getFullYear()) => {
+  if (!mmddRegex.test(mmdd)) return "";
+  const [m, d] = mmdd.split("-").map((x) => parseInt(x, 10));
+  const dt = new Date(year, m - 1, d);        // constructor LOCAL
+  return WEEKDAYS[dt.getDay()];
+};
+const formatMMDDWithDay = (val) => {
+  const mmdd = toMMDD(val);
+  if (!mmddRegex.test(mmdd)) return mmdd || "";
+  return `${mmdd} ${weekdayFromMMDD(mmdd)}`;
+};
+
 const dedupeCharsByName = (arr = []) => {
   const seen = new Set();
   const out = [];
@@ -79,23 +121,23 @@ const dedupeOptionsByName = (opts = []) => {
   return out;
 };
 
-// Mini calendario
+// ==== Mini calendario (usa año real) ====
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const WD     = ["S","M","T","W","T","F","S"];
-function buildMonthMatrix(month /*1-12*/) {
-  const first = new Date(2001, month - 1, 1);
+const WD = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+function buildMonthMatrix(month /*1-12*/, year = new Date().getFullYear()) {
+  const first = new Date(year, month - 1, 1);
   const firstWd = first.getDay();
-  const daysInMonth = new Date(2001, month, 0).getDate();
+  const daysInMonth = new Date(year, month, 0).getDate();
   const cells = [];
-  for (let i=0;i<firstWd;i++) cells.push(null);
-  for (let d=1; d<=daysInMonth; d++) cells.push(d);
+  for (let i = 0; i < firstWd; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
   const rows = [];
-  for (let i=0;i<cells.length;i+=7) rows.push(cells.slice(i, i+7));
+  for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
   return rows;
 }
 
-// ¿Tarjeta activa?
 const isActiveCard = (c) => {
   const st = String(c?.status || "").toLowerCase();
   if (!st) return true;
@@ -104,10 +146,8 @@ const isActiveCard = (c) => {
 };
 
 const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
-  // Creación rápida
   const [createTitle, setCreateTitle] = useState("");
 
-  // Modal crear/editar
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCardId, setEditingCardId] = useState(null);
   const [modalTitle, setModalTitle] = useState("");
@@ -116,20 +156,22 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
   const [selectedTeam1, setSelectedTeam1] = useState([]);
   const [selectedTeam2, setSelectedTeam2] = useState([]);
 
-  // Modal ver nota 📩
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [noteText, setNoteText] = useState("");
-  const [noteTitle, setNoteTitle] = useState("");
+  const [menuOpen1, setMenuOpen1] = useState(false);
+  const [menuOpen2, setMenuOpen2] = useState(false);
 
-  // Calendario
+  // 📅 Calendario
   const [showCal, setShowCal] = useState(false);
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth() + 1);
   const calRef = useRef(null);
 
+  // Modal nota
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [noteTitle, setNoteTitle] = useState("");
+
   // Confirm “eliminar todas”
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
 
-  // Bloqueados globales (tarjetas activas ≠ tarjeta en edición)
   const blockedActiveNames = useMemo(() => {
     const s = new Set();
     (cards || []).forEach((c) => {
@@ -146,22 +188,21 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     return s;
   }, [cards, editingCardId]);
 
-  // Opciones base con icono (usa class.image)
   const baseOptions = useMemo(
     () =>
-      (allCharacters ?? []).map((char) => ({
-        value: char,
-        label: typeof char?.name === "string" ? char.name : String(char || ""),
-        icon: char?.class?.image || null,
-      })),
+      (allCharacters ?? [])
+        .map((char) => ({
+          value: char,
+          label: typeof char?.name === "string" ? char.name : String(char || ""),
+          icon: char?.class?.image || null,
+        }))
+        .sort((a, b) => a.label.trim().toLowerCase().localeCompare(b.label.trim().toLowerCase())),
     [allCharacters]
   );
 
-  // Selecciones actuales
   const sel1Names = useMemo(() => new Set(selectedTeam1.map((o) => nameKey(o.value))), [selectedTeam1]);
   const sel2Names = useMemo(() => new Set(selectedTeam2.map((o) => nameKey(o.value))), [selectedTeam2]);
 
-  // Bloqueados efectivos (desbloquea los ya elegidos en este modal)
   const effectiveBlocked = useMemo(() => {
     const s = new Set(blockedActiveNames);
     selectedTeam1.forEach((o) => s.delete(nameKey(o.value)));
@@ -169,26 +210,48 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     return s;
   }, [blockedActiveNames, selectedTeam1, selectedTeam2]);
 
-  // Opciones visibles por team
+  const usedAccountsInCard = useMemo(() => {
+    const s = new Set();
+    selectedTeam1.forEach((o) => { const k = getAccountKey(o.value); if (k) s.add(k); });
+    selectedTeam2.forEach((o) => { const k = getAccountKey(o.value); if (k) s.add(k); });
+    return s;
+  }, [selectedTeam1, selectedTeam2]);
+
+  const selectedNamesInCard = useMemo(() => {
+    const s = new Set();
+    selectedTeam1.forEach((o) => s.add(nameKey(o.value)));
+    selectedTeam2.forEach((o) => s.add(nameKey(o.value)));
+    return s;
+  }, [selectedTeam1, selectedTeam2]);
+
   const optionsTeam1 = useMemo(() => {
-    const filtered = baseOptions.filter((opt) => {
+    const list = baseOptions.filter((opt) => {
       const k = nameKey(opt.value);
       if (effectiveBlocked.has(k)) return false;
-      return !sel2Names.has(k);
+      if (sel2Names.has(k)) return false;
+      const acc = getAccountKey(opt.value);
+      if (acc && usedAccountsInCard.has(acc) && !selectedNamesInCard.has(k)) return false;
+      return true;
     });
-    return dedupeOptionsByName(filtered);
-  }, [baseOptions, sel2Names, effectiveBlocked]);
+    return dedupeOptionsByName(list).sort(
+      (a, b) => a.label.trim().toLowerCase().localeCompare(b.label.trim().toLowerCase())
+    );
+  }, [baseOptions, sel2Names, effectiveBlocked, usedAccountsInCard, selectedNamesInCard]);
 
   const optionsTeam2 = useMemo(() => {
-    const filtered = baseOptions.filter((opt) => {
+    const list = baseOptions.filter((opt) => {
       const k = nameKey(opt.value);
       if (effectiveBlocked.has(k)) return false;
-      return !sel1Names.has(k);
+      if (sel1Names.has(k)) return false;
+      const acc = getAccountKey(opt.value);
+      if (acc && usedAccountsInCard.has(acc) && !selectedNamesInCard.has(k)) return false;
+      return true;
     });
-    return dedupeOptionsByName(filtered);
-  }, [baseOptions, sel1Names, effectiveBlocked]);
+    return dedupeOptionsByName(list).sort(
+      (a, b) => a.label.trim().toLowerCase().localeCompare(b.label.trim().toLowerCase())
+    );
+  }, [baseOptions, sel1Names, effectiveBlocked, usedAccountsInCard, selectedNamesInCard]);
 
-  // Cerrar calendario si clic fuera
   useEffect(() => {
     const onDocClick = (e) => {
       if (!showCal) return;
@@ -198,7 +261,6 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showCal]);
 
-  // Cargar equipos en modal
   const loadTeamsFromCard = (card) => {
     const fallback = Array.isArray(card?.characters) ? card.characters : [];
     const t1raw = Array.isArray(card?.team1) ? card.team1 : fallback.slice(0, 4);
@@ -209,18 +271,10 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     const t2 = dedupeCharsByName(sortTeam(t2raw).filter((c) => !t1Set.has(nameKey(c)))).slice(0, 4);
 
     setSelectedTeam1(
-      t1.map((c) => ({
-        value: c,
-        label: typeof c?.name === "string" ? c.name : String(c || ""),
-        icon: c?.class?.image || null,
-      }))
+      t1.map((c) => ({ value: c, label: typeof c?.name === "string" ? c.name : String(c || ""), icon: c?.class?.image || null }))
     );
     setSelectedTeam2(
-      t2.map((c) => ({
-        value: c,
-        label: typeof c?.name === "string" ? c.name : String(c || ""),
-        icon: c?.class?.image || null,
-      }))
+      t2.map((c) => ({ value: c, label: typeof c?.name === "string" ? c.name : String(c || ""), icon: c?.class?.image || null }))
     );
   };
 
@@ -235,7 +289,6 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     setModalOpen(true);
   };
 
-  // Guardar
   const saveModal = () => {
     const title = (modalTitle || createTitle || "").trim();
     if (!title) return alert("Have to insert a title for the card");
@@ -257,21 +310,35 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     });
     if (conflicts.length) {
       return alert(
-        `You cannot use characters that are already in ACTIVE (upcoming/live) cards.\nBlocked: ${[
-          ...new Set(conflicts),
-        ].join(", ")}`
+        `You cannot use characters that are already in ACTIVE (upcoming/live) cards.\nBlocked: ${[...new Set(conflicts)].join(", ")}`
       );
     }
 
-    const characters = dedupeCharsByName([...team1, ...team2]);
+    const usedAcc = new Set();
+    const pushUniqueByAccount = (accArr, c) => {
+      const a = getAccountKey(c);
+      if (!a) { accArr.push(c); return; }
+      if (usedAcc.has(a)) return;
+      usedAcc.add(a);
+      accArr.push(c);
+    };
+    const characters = [];
+    team1.forEach((c) => pushUniqueByAccount(characters, c));
+    team2.forEach((c) => pushUniqueByAccount(characters, c));
+
+    const charactersSet = new Set(characters.map(nameKey));
+    const finalT1 = team1.filter((c) => charactersSet.has(nameKey(c)));
+    const finalT1Set = new Set(finalT1.map(nameKey));
+    const finalT2 = team2.filter((c) => charactersSet.has(nameKey(c)) && !finalT1Set.has(nameKey(c)));
+
     const newCardData = {
       title,
       date: normalizedDate,
       time: selectedTime,
-      team1,
-      team2,
+      team1: finalT1,
+      team2: finalT2,
       characters,
-      status: "upcoming", 
+      status: "upcoming",
     };
 
     if (editingCardId) {
@@ -293,26 +360,35 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     }
   };
 
-  // Eliminar todas (confirm)
   const openDeleteAllConfirm  = () => setConfirmAllOpen(true);
   const closeDeleteAllConfirm = () => setConfirmAllOpen(false);
   const confirmDeleteAll      = () => { onSaveCards([]); setConfirmAllOpen(false); };
 
-  // Handlers selects
   const onTeamChange = (teamKey, value) => {
     const incoming = dedupeOptionsByName((value || []).slice(0, 4));
+    const otherTeamNames = teamKey === "team1" ? sel2Names : sel1Names;
+
+    const usedAcc = new Set(usedAccountsInCard);
+    const selfSelected = (teamKey === "team1" ? selectedTeam1 : selectedTeam2).map((o) => getAccountKey(o.value));
+    selfSelected.forEach((a) => a && usedAcc.delete(a));
+
+    const filtered = incoming.filter((o) => {
+      const k = nameKey(o.value);
+      if (effectiveBlocked.has(k)) return false;
+      if (otherTeamNames.has(k)) return false;
+      const a = getAccountKey(o.value);
+      if (a && usedAcc.has(a)) return false;
+      return true;
+    });
+
+    const ordered = filtered.sort((a, b) => nameKey(a.value).localeCompare(nameKey(b.value)));
+
     if (teamKey === "team1") {
-      const filtered = incoming.filter((o) => {
-        const k = nameKey(o.value);
-        return !effectiveBlocked.has(k) && !sel2Names.has(k);
-      });
-      setSelectedTeam1(dedupeOptionsByName(filtered));
+      setSelectedTeam1(dedupeOptionsByName(ordered));
+      setTimeout(() => setMenuOpen1(true), 0);
     } else {
-      const filtered = incoming.filter((o) => {
-        const k = nameKey(o.value);
-        return !effectiveBlocked.has(k) && !sel1Names.has(k);
-      });
-      setSelectedTeam2(dedupeOptionsByName(filtered));
+      setSelectedTeam2(dedupeOptionsByName(ordered));
+      setTimeout(() => setMenuOpen2(true), 0);
     }
   };
 
@@ -327,7 +403,6 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     }
   };
 
-  // Orden de tarjetas
   const sortedCards = useMemo(() => {
     const dateKey = (d) => {
       if (!d) return Number.POSITIVE_INFINITY;
@@ -341,8 +416,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
         const [, , m, day] = y;
         return parseInt(`${m}${day}`, 10);
       }
-      const dt = new Date(s);
-      if (!isNaN(dt)) return parseInt(`${z2(dt.getMonth()+1)}${z2(dt.getDate())}`, 10);
+      // Evitar new Date("YYYY-MM-DD") por UTC; si viene otro formato, no forzamos orden por fecha
       return Number.POSITIVE_INFINITY;
     };
     const minutes = (t) => {
@@ -361,9 +435,9 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
     });
   }, [cards]);
 
-  // Render etiqueta para opciones (menú) — con icono e indicador 📩 (tooltip)
   const renderOption = (opt) => {
     const note = getNote(opt.value);
+    const owner = getEmailUser(opt.value);
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={note || undefined}>
         {opt.icon ? (
@@ -372,17 +446,18 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
           <div style={{ width: 20, height: 20, borderRadius: 4, background: "#e5e7eb" }} />
         )}
         <span>{opt.label}</span>
+        {owner ? <span style={{ marginLeft: 6, opacity: 0.6, fontSize: 12 }}>({owner})</span> : null}
         {note ? <span style={{ marginLeft: 4 }}>📩</span> : null}
       </div>
     );
   };
 
-  // MultiValueLabel para que el 📩 sea clickeable en las "chips" seleccionadas
   const MultiValueLabel = (props) => {
-    const { data } = props; // option
+    const { data } = props;
     const note = getNote(data?.value);
     const icon = data?.icon;
     const label = data?.label;
+    const owner = getEmailUser(data?.value);
 
     return (
       <RSComponents.MultiValueLabel {...props}>
@@ -391,6 +466,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
             <img src={icon} alt="" style={{ width: 16, height: 16, borderRadius: 4, objectFit: "cover" }} />
           ) : null}
           <span>{label}</span>
+          {owner ? <span style={{ opacity: 0.6, fontSize: 11 }}>({owner})</span> : null}
           {note ? (
             <button
               type="button"
@@ -403,14 +479,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
                 setNoteText(note);
                 setNoteOpen(true);
               }}
-              style={{
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                lineHeight: 1,
-                padding: 0,
-                margin: 0,
-              }}
+              style={{ border: "none", background: "transparent", cursor: "pointer", lineHeight: 1, padding: 0, margin: 0 }}
             >
               📩
             </button>
@@ -422,6 +491,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
 
   const selectComponents = { MultiValueLabel };
 
+  // ---------- RENDER ----------
   return (
     <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto", fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", color: "#34495e" }}>
       <h1 style={{ marginBottom: 20, color: "#000080", fontWeight: 700 }}>Admin Panel</h1>
@@ -442,9 +512,8 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
           Create Card
         </button>
 
-        {/* Eliminar todas */}
         <button
-          onClick={openDeleteAllConfirm}
+          onClick={() => setConfirmAllOpen(true)}
           disabled={!cards || cards.length === 0}
           title="Delete all cards"
           style={{
@@ -475,7 +544,7 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
                   {card.title}
                 </h3>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem", color: "#000080", fontWeight: 600 }}>
-                  <span>{toMMDD(card.date) || "No asigned"}</span>
+                  <span>{formatMMDDWithDay(card.date) || "No asigned"}</span>
                   <span>{card.time || "No asigned"}</span>
                 </div>
 
@@ -519,19 +588,23 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
         )}
       </div>
 
-      {/* MODAL: crear/editar — auto height y alineado arriba */}
+      {/* MODAL: crear/editar */}
       <Modal
         isOpen={modalOpen}
         onRequestClose={() => { setModalOpen(false); setShowCal(false); }}
         contentLabel="Configure Card"
         style={{
           content: {
-            maxWidth: "720px",
+            // ancho + sin scrollbar interno al abrir calendario
+            maxWidth: "880px",
+            width: "min(92vw, 880px)",
             margin: "auto",
-            padding: 20,
-            borderRadius: 12,
+            padding: 24,
+            borderRadius: 14,
             height: "auto",
-            inset: "40px auto auto",
+            inset: "60px auto auto",
+            maxHeight: "calc(100vh - 120px)",
+            overflow: "visible",
           },
           overlay: {
             display: "flex",
@@ -568,34 +641,84 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
                   onBlur={() => setSelectedDate(toMMDD(selectedDate))}
                   style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
                 />
-                <button type="button" onClick={() => setShowCal((s) => !s)} style={{ padding: "0 12px", borderRadius: 8, border: "1px solid #ccc", background: "#f8fafc", cursor: "pointer", fontWeight: 600 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCal((s) => !s)}
+                  style={{ padding: "0 12px", borderRadius: 8, border: "1px solid #ccc", background: "#f8fafc", cursor: "pointer", fontWeight: 600 }}
+                  aria-label="Open calendar"
+                >
                   📅
                 </button>
               </div>
             </label>
 
+            {/* Popover calendario */}
             {showCal && (
-              <div ref={calRef} style={{ position: "absolute", top: 64, left: 0, background: "white", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 10px 20px rgba(0,0,0,0.12)", padding: 10, width: 280, zIndex: 10 }}>
+              <div
+                ref={calRef}
+                style={{
+                  position: "absolute",
+                  zIndex: 1200,
+                  top: "76px",
+                  left: 0,
+                  background: "white",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 10,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  padding: 10,
+                  width: 260,
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <button onClick={() => setCalMonth((m) => (m === 1 ? 12 : m - 1))} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18 }}>◀</button>
-                  <div style={{ fontWeight: 700 }}>{MONTHS[calMonth - 1]}</div>
-                  <button onClick={() => setCalMonth((m) => (m === 12 ? 1 : m + 1))} style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18 }}>▶</button>
+                  <button
+                    type="button"
+                    onClick={() => setCalMonth((m) => (m === 1 ? 12 : m - 1))}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18 }}
+                    aria-label="Previous month"
+                  >
+                    ‹
+                  </button>
+                  <strong style={{ fontSize: 14, color: "#0f172a" }}>{MONTHS[calMonth - 1]}</strong>
+                  <button
+                    type="button"
+                    onClick={() => setCalMonth((m) => (m === 12 ? 1 : m + 1))}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18 }}
+                    aria-label="Next month"
+                  >
+                    ›
+                  </button>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
-                  {WD.map((w) => <div key={w} style={{ textAlign: "center", fontSize: 12, color: "#64748b" }}>{w}</div>)}
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, textAlign: "center", fontSize: 12, color: "#64748b", marginBottom: 6 }}>
+                  {WD.map((w) => <div key={w}>{w}</div>)}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-                  {buildMonthMatrix(calMonth).flat().map((cell, idx) => {
-                    if (cell === null) return <div key={idx} style={{ height: 32 }} />;
-                    const mmdd = `${z2(calMonth)}-${z2(cell)}`;
-                    const isSelected = selectedDate === mmdd;
-                    return (
-                      <button key={idx} onClick={() => { setSelectedDate(mmdd); setShowCal(false); }} style={{ height: 32, borderRadius: 6, border: "1px solid #e2e8f0", background: isSelected ? "#1e88e5" : "white", color: isSelected ? "white" : "#0f172a", cursor: "pointer", fontWeight: 600 }}>
-                        {cell}
-                      </button>
-                    );
-                  })}
-                </div>
+
+                {buildMonthMatrix(calMonth).map((row, ri) => (
+                  <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+                    {row.map((day, ci) => {
+                      if (!day) return <div key={ci} />;
+                      const mmdd = `${z2(calMonth)}-${z2(day)}`;
+                      const isSel = toMMDD(selectedDate) === mmdd;
+                      return (
+                        <button
+                          key={ci}
+                          type="button"
+                          onClick={() => { setSelectedDate(mmdd); setShowCal(false); }}
+                          style={{
+                            padding: "6px 0",
+                            borderRadius: 8,
+                            border: "1px solid " + (isSel ? "#1e88e5" : "#e5e7eb"),
+                            background: isSel ? "#e3f2fd" : "white",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -614,46 +737,58 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
         {/* Equipos */}
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Select characters by team (max 4 per team):</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {/* Team 1 */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontWeight: 700 }}>Party 1</span>
               <span style={{ fontSize: 12, color: "#64748b" }}>{selectedTeam1.length}/4</span>
             </div>
             <Select
+              key={`t1-${Array.from(usedAccountsInCard).join("|")}`}
               isMulti
               options={optionsTeam1}
               value={selectedTeam1}
               onChange={(v) => onTeamChange("team1", v)}
               placeholder="Search characters..."
-              closeMenuOnSelect={false}
+              closeMenuOnSelect
+              menuIsOpen={menuOpen1}
+              onMenuOpen={() => setMenuOpen1(true)}
+              onMenuClose={() => setMenuOpen1(false)}
               getOptionValue={(opt) => nameKey(opt.value)}
               isOptionDisabled={(opt) => {
                 const k = nameKey(opt.value);
-                return effectiveBlocked.has(k) || sel1Names.has(k) || sel2Names.has(k);
+                const a = getAccountKey(opt.value);
+                return effectiveBlocked.has(k)
+                  || sel1Names.has(k) || sel2Names.has(k)
+                  || (a && usedAccountsInCard.has(a) && !selectedNamesInCard.has(k));
               }}
               formatOptionLabel={renderOption}
               components={selectComponents}
             />
           </div>
 
-          {/* Team 2 */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontWeight: 700 }}>Party 2</span>
               <span style={{ fontSize: 12, color: "#64748b" }}>{selectedTeam2.length}/4</span>
             </div>
             <Select
+              key={`t2-${Array.from(usedAccountsInCard).join("|")}`}
               isMulti
               options={optionsTeam2}
               value={selectedTeam2}
               onChange={(v) => onTeamChange("team2", v)}
               placeholder="Search characters..."
-              closeMenuOnSelect={false}
+              closeMenuOnSelect
+              menuIsOpen={menuOpen2}
+              onMenuOpen={() => setMenuOpen2(true)}
+              onMenuClose={() => setMenuOpen2(false)}
               getOptionValue={(opt) => nameKey(opt.value)}
               isOptionDisabled={(opt) => {
                 const k = nameKey(opt.value);
-                return effectiveBlocked.has(k) || sel1Names.has(k) || sel2Names.has(k);
+                const a = getAccountKey(opt.value);
+                return effectiveBlocked.has(k)
+                  || sel1Names.has(k) || sel2Names.has(k)
+                  || (a && usedAccountsInCard.has(a) && !selectedNamesInCard.has(k));
               }}
               formatOptionLabel={renderOption}
               components={selectComponents}
@@ -699,21 +834,13 @@ const AdminPanel = ({ cards, allCharacters, onSaveCards }) => {
         <p style={{ margin: 0 }}>
           You are about to delete <strong>{cards?.length || 0}</strong> card(s). This action <strong>cannot be undone</strong>.
         </p>
-        <p style={{ marginTop: 8, color: "#6b7280", fontSize: 14 }}>
-          Do you wish to continue?
-        </p>
+        <p style={{ marginTop: 8, color: "#6b7280", fontSize: 14 }}>Do you wish to continue?</p>
 
         <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <button
-            onClick={closeDeleteAllConfirm}
-            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", backgroundColor: "white", cursor: "pointer", fontWeight: 600 }}
-          >
+          <button onClick={closeDeleteAllConfirm} style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #d1d5db", backgroundColor: "white", cursor: "pointer", fontWeight: 600 }}>
             Cancel
           </button>
-          <button
-            onClick={confirmDeleteAll}
-            style={{ padding: "10px 16px", borderRadius: 8, border: "none", backgroundColor: "#d32f2f", color: "white", cursor: "pointer", fontWeight: 700 }}
-          >
+          <button onClick={confirmDeleteAll} style={{ padding: "10px 16px", borderRadius: 8, border: "none", backgroundColor: "#d32f2f", color: "white", cursor: "pointer", fontWeight: 700 }}>
             Yes, delete all
           </button>
         </div>
